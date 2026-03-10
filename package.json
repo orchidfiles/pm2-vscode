@@ -1,0 +1,150 @@
+{
+  "name": "pm2",
+  "displayName": "PM2",
+  "description": "Manage PM2 processes and logs in VS Code and Cursor",
+  "version": "1.0.0",
+  "publisher": "orchidfiles",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "license": "MIT",
+  "pricing": "Free",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orchidfiles/pm2-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/orchidfiles/pm2-vscode/issues"
+  },
+  "homepage": "https://github.com/orchidfiles/pm2-vscode",
+  "keywords": [
+    "pm2",
+    "process-manager",
+    "process-monitoring",
+    "logs",
+    "nodejs",
+    "devops",
+    "explorer",
+    "terminal"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "icon": "resources/icon.png",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "pm2Processes",
+          "name": "PM2"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pm2.restart",
+        "category": "PM2",
+        "title": "Restart",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pm2.stop",
+        "category": "PM2",
+        "title": "Stop",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pm2.start",
+        "category": "PM2",
+        "title": "Start",
+        "icon": "$(play)"
+      },
+      {
+        "command": "pm2.logs",
+        "category": "PM2",
+        "title": "Logs",
+        "icon": "$(output)"
+      },
+      {
+        "command": "pm2.refresh",
+        "category": "PM2",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pm2.logs",
+          "when": "false"
+        },
+        {
+          "command": "pm2.restart",
+          "when": "false"
+        },
+        {
+          "command": "pm2.stop",
+          "when": "false"
+        },
+        {
+          "command": "pm2.start",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "pm2.refresh",
+          "when": "view == pm2Processes",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pm2.logs",
+          "when": "view == pm2Processes",
+          "group": "inline@1"
+        },
+        {
+          "command": "pm2.restart",
+          "when": "view == pm2Processes && viewItem == online",
+          "group": "inline@2"
+        },
+        {
+          "command": "pm2.stop",
+          "when": "view == pm2Processes && viewItem == online",
+          "group": "inline@3"
+        },
+        {
+          "command": "pm2.start",
+          "when": "view == pm2Processes && viewItem == stopped",
+          "group": "inline@2"
+        },
+        {
+          "command": "pm2.restart",
+          "when": "view == pm2Processes && viewItem == stopped",
+          "group": "inline@3"
+        },
+        {
+          "command": "pm2.restart",
+          "when": "view == pm2Processes && viewItem == errored",
+          "group": "inline@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "~22.0.0",
+    "@types/vscode": "~1.85.0",
+    "@vscode/vsce": "~3.2.0",
+    "typescript": "~5.7.0"
+  },
+  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
+}
