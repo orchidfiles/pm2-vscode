@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-import { execFile } from 'child_process';
 import { Pm2Provider, Pm2Item } from './pm2-provider';
-
-// pm2 needs time to update process state after a command
-const REFRESH_DELAY_MS = 1500;
+import { OPTIMISTIC_STATUS, SETTLED_STATUS } from './constants';
+import { Pm2Action } from './types';
+import { execFileAsync } from './utils';
 
 export function activate(context: vscode.ExtensionContext) {
   const pm2Provider = new Pm2Provider();
@@ -38,8 +37,12 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      runPm2(action, item.process.name);
-      setTimeout(() => pm2Provider.refresh(), REFRESH_DELAY_MS);
+      pm2Provider.optimisticUpdate(item, OPTIMISTIC_STATUS[action], SETTLED_STATUS[action]);
+      runPm2(action, item.process.name).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`pm2 ${action} ${item.process.name}: ${message}`);
+        pm2Provider.abortPolling();
+      });
     }),
   );
 
@@ -48,10 +51,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
-function runPm2(command: 'restart' | 'stop' | 'start', name: string): void {
-  execFile('pm2', [command, name], (err) => {
-    if (err) {
-      vscode.window.showErrorMessage(`pm2 ${command} ${name}: ${err.message}`);
-    }
-  });
+function runPm2(command: Pm2Action, name: string): Promise<void> {
+  return execFileAsync('pm2', [command, name]).then(() => undefined);
 }

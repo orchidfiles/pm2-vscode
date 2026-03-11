@@ -1,44 +1,36 @@
 import * as vscode from 'vscode';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
-
-// auto-refresh interval in milliseconds
-const AUTO_REFRESH_MS = 5000;
-
-export interface Pm2Process {
-  name: string;
-  status: 'online' | 'stopped' | 'errored' | 'stopping' | 'launching' | string;
-  pid: number | null;
-  cpu: number;
-  memory: number;
-}
-
-const STATUS_CONTEXT: Record<string, string> = {
-  online: 'online',
-  errored: 'errored',
-};
+import { execFileAsync, sleep } from './utils';
+import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, AUTO_REFRESH_MS } from './constants';
+import { Pm2Status } from './enums';
+import { Pm2Process } from './types';
 
 export class Pm2Item extends vscode.TreeItem {
   constructor(public readonly process: Pm2Process) {
     super(process.name, vscode.TreeItemCollapsibleState.None);
 
-    this.contextValue = STATUS_CONTEXT[process.status] ?? 'stopped';
-
     const memMb = Math.round(process.memory / 1024 / 1024);
-    if (process.status === 'online') {
-      this.description = `${process.cpu}% · ${memMb} MB`;
-    } else {
-      this.description = process.status;
-    }
 
-    if (process.status === 'online') {
-      this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconPassed'));
-    } else if (process.status === 'errored') {
-      this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconFailed'));
-    } else {
-      this.iconPath = new vscode.ThemeIcon('circle-outline');
+    switch (process.status) {
+      case Pm2Status.Online:
+        this.contextValue = Pm2Status.Online;
+        this.description = `${process.cpu}% · ${memMb} MB`;
+        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconPassed'));
+        break;
+      case Pm2Status.Errored:
+        this.contextValue = Pm2Status.Errored;
+        this.description = process.status;
+        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconFailed'));
+        break;
+      case Pm2Status.Stopped:
+        this.contextValue = Pm2Status.Stopped;
+        this.description = process.status;
+        this.iconPath = new vscode.ThemeIcon('circle-outline');
+        break;
+      default:
+        // stopping, launching, unknown — no action buttons
+        this.contextValue = process.status;
+        this.description = process.status;
+        this.iconPath = new vscode.ThemeIcon('circle-outline');
     }
 
     this.tooltip = [
@@ -47,7 +39,7 @@ export class Pm2Item extends vscode.TreeItem {
       process.pid ? `PID: ${process.pid}` : null,
       `CPU: ${process.cpu}%`,
       `Memory: ${memMb} MB`,
-    ].filter(Boolean).join('\n');
+    ].filter((x): x is string => x !== null).join('\n');
   }
 }
 
@@ -56,7 +48,12 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private refreshInterval: ReturnType<typeof setInterval> | undefined;
+  private pollAborted = false;
+  private polling = false;
   private pm2Missing = false;
+  private lastProcesses: Pm2Process[] = [];
+  // Optimistic status overrides by process name, cleared after polling.
+  private optimisticCache = new Map<string, Pm2Process>();
 
   constructor() {
     this.startAutoRefresh();
@@ -66,14 +63,73 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
     this._onDidChangeTreeData.fire();
   }
 
+  // Optimistically update a single item's status before pm2 confirms the change.
+  // Pauses auto-refresh and starts polling until settled status or timeout.
+  optimisticUpdate(item: Pm2Item, status: Pm2Status, settledStatuses: Pm2Status[]): void {
+    this.optimisticCache.set(item.process.name, { ...item.process, status, cpu: 0, memory: 0 });
+    this._onDidChangeTreeData.fire();
+
+    this.stopPolling();
+    this.pollAborted = false;
+    this.polling = true;
+    this.pauseAutoRefresh();
+
+    void this.poll(item.process.name, settledStatuses, Date.now() + POLL_TIMEOUT_MS);
+  }
+
+  abortPolling(): void {
+    this.stopPolling();
+    this.optimisticCache.clear();
+    this.resumeAutoRefresh();
+    this.refresh();
+  }
+
+  private async poll(name: string, settledStatuses: Pm2Status[], deadline: number): Promise<void> {
+    while (!this.pollAborted) {
+      await sleep(POLL_INTERVAL_MS);
+
+      if (this.pollAborted) {
+        return;
+      }
+
+      const processes = await this.getProcesses();
+      const proc = processes.find((p) => p.name === name);
+
+      if (!proc || settledStatuses.includes(proc.status as Pm2Status) || Date.now() >= deadline) {
+        this.stopPolling();
+        this.optimisticCache.clear();
+        this.resumeAutoRefresh();
+        this.refresh();
+        return;
+      }
+    }
+  }
+
+  private stopPolling(): void {
+    this.pollAborted = true;
+    this.polling = false;
+  }
+
+  private pauseAutoRefresh(): void {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = undefined;
+    }
+  }
+
+  private resumeAutoRefresh(): void {
+    if (!this.refreshInterval) {
+      this.startAutoRefresh();
+    }
+  }
+
   private startAutoRefresh(): void {
     this.refreshInterval = setInterval(() => this.refresh(), AUTO_REFRESH_MS);
   }
 
   dispose(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
+    this.pauseAutoRefresh();
+    this.stopPolling();
     this._onDidChangeTreeData.dispose();
   }
 
@@ -82,8 +138,14 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
   }
 
   async getChildren(): Promise<Pm2Item[]> {
-    const processes = await this.getProcesses();
-    return processes.map((p) => new Pm2Item(p));
+    // During polling render instantly from last known data + optimistic overrides,
+    // without waiting for pm2 jlist
+    const processes = this.polling ? this.lastProcesses : await this.getProcesses();
+
+    return processes.map((p) => {
+      const override = this.optimisticCache.get(p.name);
+      return new Pm2Item(override ?? p);
+    });
   }
 
   private async getProcesses(): Promise<Pm2Process[]> {
@@ -93,10 +155,11 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
       const result = await execFileAsync('pm2', ['jlist'], { encoding: 'utf-8' });
       stdout = result.stdout;
       this.pm2Missing = false;
-    } catch (err: any) {
+    } catch (err) {
       if (!this.pm2Missing) {
         this.pm2Missing = true;
-        vscode.window.showErrorMessage(`PM2: ${err.message}`);
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`PM2: ${message}`);
       }
       return [];
     }
@@ -106,14 +169,21 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
     }
 
     try {
-      const list = JSON.parse(stdout) as any[];
-      return list.map((p) => ({
-        name: p.name,
-        status: p.pm2_env?.status ?? 'unknown',
-        pid: p.pid ?? null,
-        cpu: p.monit?.cpu ?? 0,
-        memory: p.monit?.memory ?? 0,
-      }));
+      const list = JSON.parse(stdout) as unknown[];
+      this.lastProcesses = list
+        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+        .map((p) => {
+          const env = p['pm2_env'] as Record<string, unknown> | undefined;
+          const monit = p['monit'] as Record<string, unknown> | undefined;
+          return {
+            name: String(p['name'] ?? ''),
+            status: String(env?.['status'] ?? Pm2Status.Stopped) as Pm2Status | string,
+            pid: typeof p['pid'] === 'number' ? p['pid'] : null,
+            cpu: typeof monit?.['cpu'] === 'number' ? monit['cpu'] : 0,
+            memory: typeof monit?.['memory'] === 'number' ? monit['memory'] : 0,
+          };
+        });
+      return this.lastProcesses;
     } catch {
       vscode.window.showErrorMessage('PM2: failed to parse process list');
       return [];

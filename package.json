@@ -1,8 +1,8 @@
 {
   "name": "pm2",
   "displayName": "PM2",
-  "description": "Manage PM2 processes and logs in VS Code and Cursor",
-  "version": "1.0.0",
+  "description": "View and manage PM2 processes from VS Code and Cursor",
+  "version": "1.0.1",
   "publisher": "orchidfiles",
   "engines": {
     "vscode": "^1.85.0"
@@ -23,9 +23,7 @@
     "process-monitoring",
     "logs",
     "nodejs",
-    "devops",
-    "explorer",
-    "terminal"
+    "devops"
   ],
   "categories": [
     "Other"
@@ -138,7 +136,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "package": "vsce package --no-dependencies"
+    "package": "pnpm build && vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "~22.0.0",
