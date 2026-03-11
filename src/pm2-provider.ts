@@ -28,13 +28,13 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
 
 	// Optimistically update a single item's status before pm2 confirms the change.
 	// Pauses auto-refresh while any polling is active; resumes when all polls settle.
-	optimisticUpdate(item: Pm2Item, status: Pm2Status, settledStatuses: Pm2Status[]): void {
-		const id = item.process.id;
+	optimisticUpdate(process: Pm2Process, status: Pm2Status, settledStatuses: string[]): void {
+		const id = process.id;
 
 		// Cancel any previous poll for this process before starting a new one.
 		this.abortPoll(id);
 
-		this.optimisticCache.set(id, { ...item.process, status, cpu: 0, memory: 0 });
+		this.optimisticCache.set(id, { ...process, status, cpu: 0, memory: 0 });
 		this._onDidChangeTreeData.fire();
 
 		this.pauseAutoRefresh();
@@ -65,7 +65,7 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
 		}
 	}
 
-	private async poll(handle: PollHandle, id: number, settledStatuses: Pm2Status[], deadline: number): Promise<void> {
+	private async poll(handle: PollHandle, id: number, settledStatuses: string[], deadline: number): Promise<void> {
 		while (!handle.aborted) {
 			await sleep(POLL_INTERVAL_MS);
 
@@ -148,12 +148,20 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
 			return [];
 		}
 
-		if (!stdout) {
+		// pm2 may emit warning lines before the JSON array; find the first '[' at the
+		// start of a line (or the very start of stdout) to skip them.
+		const jsonStart = stdout.search(/(^|\n)\[/);
+
+		if (jsonStart === -1) {
+			vscode.window.showErrorMessage('PM2: failed to parse process list');
+
 			return [];
 		}
 
+		const jsonOffset = stdout[jsonStart] === '[' ? jsonStart : jsonStart + 1;
+
 		try {
-			const list = JSON.parse(stdout) as unknown[];
+			const list = JSON.parse(stdout.slice(jsonOffset)) as unknown[];
 			this.lastProcesses = parseProcessList(list);
 
 			return this.lastProcesses;

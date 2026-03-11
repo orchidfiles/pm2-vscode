@@ -23,4 +23,4 @@ dist/
 *.vsix
 
 # Cursor
-.cursor/
+.cursor/rules/global

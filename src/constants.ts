@@ -18,3 +18,5 @@ export const SETTLED_STATUS: Record<Pm2Action, Pm2Status[]> = {
 export const POLL_INTERVAL_MS = 500;
 export const POLL_TIMEOUT_MS = 10_000;
 export const AUTO_REFRESH_MS = 5000;
+
+export const KNOWN_STATUSES = new Set<string>(Object.values(Pm2Status));

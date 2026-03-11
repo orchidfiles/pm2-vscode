@@ -10,7 +10,8 @@ export interface Pm2Process {
 	/** pm2_env.pm_id — stable numeric identifier across restarts */
 	id: number;
 	name: string;
-	status: Pm2Status;
+	/** Known pm2 statuses map to Pm2Status; unknown values are passed through as-is. */
+	status: Pm2Status | string;
 	pid: number | null;
 	cpu: number;
 	memory: number;

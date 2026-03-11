@@ -2,14 +2,16 @@ import * as vscode from 'vscode';
 
 import { Pm2Status } from './enums';
 import { Pm2Process } from './types';
+import { toKnownStatus } from './utils';
 
 export class Pm2Item extends vscode.TreeItem {
 	constructor(public readonly process: Pm2Process) {
 		super(process.name, vscode.TreeItemCollapsibleState.None);
 
 		const memMb = Math.round(process.memory / 1024 / 1024);
+		const status = toKnownStatus(process.status);
 
-		switch (process.status) {
+		switch (status) {
 			case Pm2Status.Online:
 				this.contextValue = Pm2Status.Online;
 				this.description = `${process.cpu}% · ${memMb} MB`;

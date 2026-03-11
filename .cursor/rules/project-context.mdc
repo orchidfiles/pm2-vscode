@@ -1,0 +1,39 @@
+---
+description: "VS Code extension for viewing and managing PM2 processes"
+alwaysApply: true
+---
+
+# Project Context
+
+## Purpose
+VS Code extension that adds a PM2 process tree to the Explorer panel with start/stop/restart/logs actions and optimistic UI updates.
+
+## Scope
+Extension UI and command handling only. Does not manage pm2 configuration, ecosystem files, or deployment. Calls pm2 CLI as an external binary, no pm2 Node.js API dependency.
+
+## Key Principles
+1. No runtime dependencies, only devDependencies; bundled via tsc, not webpack/esbuild.
+2. `extensionKind: ["ui"]` — local use only, not Remote SSH.
+3. Optimistic updates: show status change immediately, poll pm2 to confirm, abort on error.
+4. All pm2 interaction via `execFileAsync('pm2', [...])`, never shell string interpolation.
+5. All pm2 CLI actions target processes by `pm_id` (numeric id), never by name — names are not unique.
+6. Tree items are stateless value objects; all state lives in `Pm2Provider`.
+7. TypeScript strict mode; no unsafe casts, validate external data before typing.
+8. `status: Pm2Status | string` — known statuses map to enum, unknown pm2 statuses pass through as-is.
+
+## Structure
+- `src/`: extension source
+- `tests/`: vitest unit tests; vscode mocked via vi.mock (no vscode runtime needed)
+
+## File Responsibilities
+Each file has a single responsibility. Never mix them: no functions in constants, no constants in utils, no logic in types or enums.
+- `constants.ts`: constants and lookup structures only
+- `utils.ts`: pure utility functions
+- `types.ts`: interfaces and type aliases
+- `enums.ts`: enums
+
+## Workflow with AI
+- Prefer editing existing files; the codebase is intentionally small, avoid adding abstractions.
+- When touching pm2-provider.ts polling logic, watch for concurrent polls and abort flags.
+- `package.json` `contributes.menus` controls which buttons appear per contextValue; keep in sync with Pm2Item switch cases.
+- No new runtime dependencies without explicit discussion.
