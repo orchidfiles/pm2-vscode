@@ -1,0 +1,34 @@
+[
+  {
+    "name": "api",
+    "pid": 1234,
+    "pm2_env": { "status": "online" },
+    "monit": { "cpu": 5, "memory": 52428800 }
+  },
+  {
+    "name": "worker",
+    "pid": null,
+    "pm2_env": {},
+    "monit": { "cpu": 0, "memory": 0 }
+  },
+  {
+    "name": "x",
+    "pid": null,
+    "pm2_env": { "status": "online" },
+    "monit": { "cpu": 0, "memory": 0 }
+  },
+  {
+    "name": "x",
+    "pid": 1,
+    "pm2_env": { "status": "online" }
+  },
+  null,
+  "string",
+  42,
+  {
+    "name": "valid",
+    "pid": 1,
+    "pm2_env": { "status": "online" },
+    "monit": { "cpu": 0, "memory": 0 }
+  }
+]

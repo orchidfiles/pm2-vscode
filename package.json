@@ -1,7 +1,7 @@
 {
   "name": "pm2",
   "displayName": "PM2",
-  "description": "View and manage PM2 processes from VS Code and Cursor",
+  "description": "View and manage PM2 processes",
   "version": "1.1.0",
   "publisher": "orchidfiles",
   "engines": {
@@ -135,14 +135,20 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "package": "pnpm build && vsce package --no-dependencies"
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "package": "pnpm build && vsce package --no-dependencies --out pm2.vsix",
+    "publish:vscode": "vsce publish --packagePath pm2.vsix",
+    "publish:ovsx": "ovsx publish --packagePath pm2.vsix",
+    "publish": "pnpm package && pnpm publish:vscode && pnpm publish:ovsx"
   },
   "devDependencies": {
-    "@types/node": "~22.0.0",
+    "@types/node": "~22.15.35",
     "@types/vscode": "~1.85.0",
     "@vscode/vsce": "~3.2.0",
-    "typescript": "~5.7.0"
+    "ovsx": "~0.10.9",
+    "typescript": "~5.7.0",
+    "vitest": "~4.0.18"
   },
   "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
 }

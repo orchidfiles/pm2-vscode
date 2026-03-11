@@ -1,0 +1,7 @@
+[
+  { "name": "api",   "status": "online",   "pid": 1234, "cpu": 5, "memory": 52428800 },
+  { "name": "worker","status": "stopped",  "pid": null, "cpu": 0, "memory": 0 },
+  { "name": "x",     "status": "online",   "pid": null, "cpu": 0, "memory": 0 },
+  { "name": "x",     "status": "online",   "pid": 1,    "cpu": 0, "memory": 0 },
+  { "name": "valid", "status": "online",   "pid": 1,    "cpu": 0, "memory": 0 }
+]

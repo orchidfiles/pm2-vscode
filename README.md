@@ -49,7 +49,7 @@ pnpm package
 ```
 
 This produces a `.vsix` file in the project root.  
-Install it via `Ctrl+Shift+P` → "Extensions: Install from VSIX..." → select the file.
+Install it via `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) → "Extensions: Install from VSIX..." → select the file.
 
 ## Marketplaces
 

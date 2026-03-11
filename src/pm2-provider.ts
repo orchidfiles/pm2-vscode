@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { execFileAsync, sleep } from './utils';
+import { execFileAsync, sleep, parseProcessList } from './utils';
 import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, AUTO_REFRESH_MS } from './constants';
 import { Pm2Status } from './enums';
 import { Pm2Process } from './types';
@@ -170,19 +170,7 @@ export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
 
     try {
       const list = JSON.parse(stdout) as unknown[];
-      this.lastProcesses = list
-        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
-        .map((p) => {
-          const env = p['pm2_env'] as Record<string, unknown> | undefined;
-          const monit = p['monit'] as Record<string, unknown> | undefined;
-          return {
-            name: String(p['name'] ?? ''),
-            status: String(env?.['status'] ?? Pm2Status.Stopped) as Pm2Status | string,
-            pid: typeof p['pid'] === 'number' ? p['pid'] : null,
-            cpu: typeof monit?.['cpu'] === 'number' ? monit['cpu'] : 0,
-            memory: typeof monit?.['memory'] === 'number' ? monit['memory'] : 0,
-          };
-        });
+      this.lastProcesses = parseProcessList(list);
       return this.lastProcesses;
     } catch {
       vscode.window.showErrorMessage('PM2: failed to parse process list');
