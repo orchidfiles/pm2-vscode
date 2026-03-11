@@ -2,10 +2,16 @@ import { Pm2Status } from './enums';
 
 export type Pm2Action = 'restart' | 'stop' | 'start';
 
+export interface PollHandle {
+	aborted: boolean;
+}
+
 export interface Pm2Process {
-  name: string;
-  status: Pm2Status | string;
-  pid: number | null;
-  cpu: number;
-  memory: number;
+	/** pm2_env.pm_id — stable numeric identifier across restarts */
+	id: number;
+	name: string;
+	status: Pm2Status;
+	pid: number | null;
+	cpu: number;
+	memory: number;
 }

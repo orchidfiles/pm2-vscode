@@ -1,180 +1,166 @@
 import * as vscode from 'vscode';
-import { execFileAsync, sleep, parseProcessList } from './utils';
+
 import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, AUTO_REFRESH_MS } from './constants';
 import { Pm2Status } from './enums';
-import { Pm2Process } from './types';
-
-export class Pm2Item extends vscode.TreeItem {
-  constructor(public readonly process: Pm2Process) {
-    super(process.name, vscode.TreeItemCollapsibleState.None);
-
-    const memMb = Math.round(process.memory / 1024 / 1024);
-
-    switch (process.status) {
-      case Pm2Status.Online:
-        this.contextValue = Pm2Status.Online;
-        this.description = `${process.cpu}% · ${memMb} MB`;
-        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconPassed'));
-        break;
-      case Pm2Status.Errored:
-        this.contextValue = Pm2Status.Errored;
-        this.description = process.status;
-        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('testing.iconFailed'));
-        break;
-      case Pm2Status.Stopped:
-        this.contextValue = Pm2Status.Stopped;
-        this.description = process.status;
-        this.iconPath = new vscode.ThemeIcon('circle-outline');
-        break;
-      default:
-        // stopping, launching, unknown — no action buttons
-        this.contextValue = process.status;
-        this.description = process.status;
-        this.iconPath = new vscode.ThemeIcon('circle-outline');
-    }
-
-    this.tooltip = [
-      `Name: ${process.name}`,
-      `Status: ${process.status}`,
-      process.pid ? `PID: ${process.pid}` : null,
-      `CPU: ${process.cpu}%`,
-      `Memory: ${memMb} MB`,
-    ].filter((x): x is string => x !== null).join('\n');
-  }
-}
+import { Pm2Item } from './pm2-item';
+import { Pm2Process, PollHandle } from './types';
+import { execFileAsync, sleep, parseProcessList } from './utils';
 
 export class Pm2Provider implements vscode.TreeDataProvider<Pm2Item> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<Pm2Item | undefined | void>();
-  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	private _onDidChangeTreeData = new vscode.EventEmitter<Pm2Item | undefined | void>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private refreshInterval: ReturnType<typeof setInterval> | undefined;
-  private pollAborted = false;
-  private polling = false;
-  private pm2Missing = false;
-  private lastProcesses: Pm2Process[] = [];
-  // Optimistic status overrides by process name, cleared after polling.
-  private optimisticCache = new Map<string, Pm2Process>();
+	private refreshInterval: ReturnType<typeof setInterval> | undefined;
+	private pm2Missing = false;
+	private lastProcesses: Pm2Process[] = [];
 
-  constructor() {
-    this.startAutoRefresh();
-  }
+	// Per-process optimistic overrides and active poll handles, keyed by pm_id.
+	private optimisticCache = new Map<number, Pm2Process>();
+	private pollHandles = new Map<number, PollHandle>();
 
-  refresh(): void {
-    this._onDidChangeTreeData.fire();
-  }
+	constructor() {
+		this.startAutoRefresh();
+	}
 
-  // Optimistically update a single item's status before pm2 confirms the change.
-  // Pauses auto-refresh and starts polling until settled status or timeout.
-  optimisticUpdate(item: Pm2Item, status: Pm2Status, settledStatuses: Pm2Status[]): void {
-    this.optimisticCache.set(item.process.name, { ...item.process, status, cpu: 0, memory: 0 });
-    this._onDidChangeTreeData.fire();
+	refresh(): void {
+		this._onDidChangeTreeData.fire();
+	}
 
-    this.stopPolling();
-    this.pollAborted = false;
-    this.polling = true;
-    this.pauseAutoRefresh();
+	// Optimistically update a single item's status before pm2 confirms the change.
+	// Pauses auto-refresh while any polling is active; resumes when all polls settle.
+	optimisticUpdate(item: Pm2Item, status: Pm2Status, settledStatuses: Pm2Status[]): void {
+		const id = item.process.id;
 
-    void this.poll(item.process.name, settledStatuses, Date.now() + POLL_TIMEOUT_MS);
-  }
+		// Cancel any previous poll for this process before starting a new one.
+		this.abortPoll(id);
 
-  abortPolling(): void {
-    this.stopPolling();
-    this.optimisticCache.clear();
-    this.resumeAutoRefresh();
-    this.refresh();
-  }
+		this.optimisticCache.set(id, { ...item.process, status, cpu: 0, memory: 0 });
+		this._onDidChangeTreeData.fire();
 
-  private async poll(name: string, settledStatuses: Pm2Status[], deadline: number): Promise<void> {
-    while (!this.pollAborted) {
-      await sleep(POLL_INTERVAL_MS);
+		this.pauseAutoRefresh();
 
-      if (this.pollAborted) {
-        return;
-      }
+		const handle: PollHandle = { aborted: false };
 
-      const processes = await this.getProcesses();
-      const proc = processes.find((p) => p.name === name);
+		this.pollHandles.set(id, handle);
 
-      if (!proc || settledStatuses.includes(proc.status as Pm2Status) || Date.now() >= deadline) {
-        this.stopPolling();
-        this.optimisticCache.clear();
-        this.resumeAutoRefresh();
-        this.refresh();
-        return;
-      }
-    }
-  }
+		void this.poll(handle, id, settledStatuses, Date.now() + POLL_TIMEOUT_MS);
+	}
 
-  private stopPolling(): void {
-    this.pollAborted = true;
-    this.polling = false;
-  }
+	abortPolling(): void {
+		for (const id of this.pollHandles.keys()) {
+			this.abortPoll(id);
+		}
 
-  private pauseAutoRefresh(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = undefined;
-    }
-  }
+		this.optimisticCache.clear();
+		this.maybeResumeAutoRefresh();
+		this.refresh();
+	}
 
-  private resumeAutoRefresh(): void {
-    if (!this.refreshInterval) {
-      this.startAutoRefresh();
-    }
-  }
+	private abortPoll(id: number): void {
+		const handle = this.pollHandles.get(id);
 
-  private startAutoRefresh(): void {
-    this.refreshInterval = setInterval(() => this.refresh(), AUTO_REFRESH_MS);
-  }
+		if (handle) {
+			handle.aborted = true;
+			this.pollHandles.delete(id);
+		}
+	}
 
-  dispose(): void {
-    this.pauseAutoRefresh();
-    this.stopPolling();
-    this._onDidChangeTreeData.dispose();
-  }
+	private async poll(handle: PollHandle, id: number, settledStatuses: Pm2Status[], deadline: number): Promise<void> {
+		while (!handle.aborted) {
+			await sleep(POLL_INTERVAL_MS);
 
-  getTreeItem(element: Pm2Item): vscode.TreeItem {
-    return element;
-  }
+			if (handle.aborted) {
+				return;
+			}
 
-  async getChildren(): Promise<Pm2Item[]> {
-    // During polling render instantly from last known data + optimistic overrides,
-    // without waiting for pm2 jlist
-    const processes = this.polling ? this.lastProcesses : await this.getProcesses();
+			const processes = await this.getProcesses();
+			const proc = processes.find((p) => p.id === id);
 
-    return processes.map((p) => {
-      const override = this.optimisticCache.get(p.name);
-      return new Pm2Item(override ?? p);
-    });
-  }
+			if (!proc || settledStatuses.includes(proc.status) || Date.now() >= deadline) {
+				this.abortPoll(id);
+				this.optimisticCache.delete(id);
+				this.maybeResumeAutoRefresh();
+				this.refresh();
 
-  private async getProcesses(): Promise<Pm2Process[]> {
-    let stdout: string;
+				return;
+			}
+		}
+	}
 
-    try {
-      const result = await execFileAsync('pm2', ['jlist'], { encoding: 'utf-8' });
-      stdout = result.stdout;
-      this.pm2Missing = false;
-    } catch (err) {
-      if (!this.pm2Missing) {
-        this.pm2Missing = true;
-        const message = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`PM2: ${message}`);
-      }
-      return [];
-    }
+	private pauseAutoRefresh(): void {
+		if (this.refreshInterval) {
+			clearInterval(this.refreshInterval);
+			this.refreshInterval = undefined;
+		}
+	}
 
-    if (!stdout) {
-      return [];
-    }
+	private maybeResumeAutoRefresh(): void {
+		if (this.pollHandles.size === 0 && !this.refreshInterval) {
+			this.startAutoRefresh();
+		}
+	}
 
-    try {
-      const list = JSON.parse(stdout) as unknown[];
-      this.lastProcesses = parseProcessList(list);
-      return this.lastProcesses;
-    } catch {
-      vscode.window.showErrorMessage('PM2: failed to parse process list');
-      return [];
-    }
-  }
+	private startAutoRefresh(): void {
+		this.refreshInterval = setInterval(() => this.refresh(), AUTO_REFRESH_MS);
+	}
+
+	dispose(): void {
+		this.pauseAutoRefresh();
+
+		for (const handle of this.pollHandles.values()) {
+			handle.aborted = true;
+		}
+
+		this.pollHandles.clear();
+		this._onDidChangeTreeData.dispose();
+	}
+
+	getTreeItem(element: Pm2Item): vscode.TreeItem {
+		return element;
+	}
+
+	async getChildren(): Promise<Pm2Item[]> {
+		// During active polling render instantly from last known data + optimistic overrides,
+		// without waiting for pm2 jlist.
+		const processes = this.pollHandles.size > 0 ? this.lastProcesses : await this.getProcesses();
+
+		return processes.map((p) => {
+			const override = this.optimisticCache.get(p.id);
+
+			return new Pm2Item(override ?? p);
+		});
+	}
+
+	private async getProcesses(): Promise<Pm2Process[]> {
+		let stdout: string;
+
+		try {
+			const result = await execFileAsync('pm2', ['jlist'], { encoding: 'utf-8' });
+			stdout = result.stdout;
+			this.pm2Missing = false;
+		} catch (err) {
+			if (!this.pm2Missing) {
+				this.pm2Missing = true;
+				const message = err instanceof Error ? err.message : String(err);
+				vscode.window.showErrorMessage(`PM2: ${message}`);
+			}
+
+			return [];
+		}
+
+		if (!stdout) {
+			return [];
+		}
+
+		try {
+			const list = JSON.parse(stdout) as unknown[];
+			this.lastProcesses = parseProcessList(list);
+
+			return this.lastProcesses;
+		} catch {
+			vscode.window.showErrorMessage('PM2: failed to parse process list');
+
+			return [];
+		}
+	}
 }

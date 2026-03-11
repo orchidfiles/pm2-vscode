@@ -135,6 +135,9 @@
     }
   },
   "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
     "package": "pnpm build && vsce package --no-dependencies --out pm2.vsix",
@@ -143,11 +146,23 @@
     "publish": "pnpm package && pnpm publish:vscode && pnpm publish:ovsx"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "~5.10.0",
     "@types/node": "~22.15.35",
     "@types/vscode": "~1.85.0",
+    "@typescript-eslint/parser": "~8.57.0",
+    "@vitest/eslint-plugin": "~1.6.10",
     "@vscode/vsce": "~3.2.0",
+    "eslint": "~9.39.4",
+    "eslint-config-prettier": "~10.1.8",
+    "eslint-import-resolver-typescript": "~4.4.4",
+    "eslint-plugin-import-x": "~4.16.1",
+    "eslint-plugin-prettier": "~5.5.5",
+    "globals": "~17.4.0",
+    "husky": "^9.1.7",
     "ovsx": "~0.10.9",
+    "prettier": "~3.8.1",
     "typescript": "~5.7.0",
+    "typescript-eslint": "~8.57.0",
     "vitest": "~4.0.18"
   },
   "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
