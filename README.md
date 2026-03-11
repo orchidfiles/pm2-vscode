@@ -63,6 +63,4 @@ Other inquiries: [orchid@orchidfiles.com](mailto:orchid@orchidfiles.com)
 
 ---
 
-<br>
-
 Made by [orchidfiles.com](https://orchidfiles.com)
