@@ -20,6 +20,7 @@ Extension UI and command handling only. Does not manage pm2 configuration, ecosy
 6. Tree items are stateless value objects; all state lives in `Pm2Provider`.
 7. TypeScript strict mode; no unsafe casts, validate external data before typing.
 8. `status: Pm2Status | string` — known statuses map to enum, unknown pm2 statuses pass through as-is.
+9. Bulk actions (startAll/stopAll/restartAll) do not use optimistic updates, they operate on all processes without per-process state tracking.
 
 ## Structure
 - `src/`: extension source

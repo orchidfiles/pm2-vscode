@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { OPTIMISTIC_STATUS, SETTLED_STATUS } from './constants';
+import { OPTIMISTIC_STATUS, PM2_ACTIONS, SETTLED_STATUS } from './constants';
 import { Pm2Item } from './pm2-item';
 import { Pm2Provider } from './pm2-provider';
 import { Pm2Action } from './types';
@@ -11,10 +11,6 @@ export function activate(context: vscode.ExtensionContext) {
 	const pm2Tree = vscode.window.createTreeView('pm2Processes', {
 		treeDataProvider: pm2Provider,
 		showCollapseAll: false
-	});
-
-	const pm2Refresh = vscode.commands.registerCommand('pm2.refresh', () => {
-		pm2Provider.refresh();
 	});
 
 	const pm2Logs = vscode.commands.registerCommand('pm2.logs', (item?: Pm2Item) => {
@@ -29,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 		terminal.sendText(`pm2 logs ${item.process.id}`);
 	});
 
-	const actionCommands = (['restart', 'stop', 'start'] as const).map((action) =>
+	const actionCommands = PM2_ACTIONS.map((action) =>
 		vscode.commands.registerCommand(`pm2.${action}`, (item?: Pm2Item) => {
 			if (!item) {
 				vscode.window.showInformationMessage('Select a PM2 process from the PM2 view first.');
@@ -46,11 +42,26 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	context.subscriptions.push(pm2Tree, pm2Provider, pm2Refresh, pm2Logs, ...actionCommands);
+	const bulkCommands = PM2_ACTIONS.map((action) =>
+		vscode.commands.registerCommand(`pm2.${action}All`, () => {
+			runPm2All(action)
+				.then(() => pm2Provider.refresh())
+				.catch((err: unknown) => {
+					const message = err instanceof Error ? err.message : String(err);
+					vscode.window.showErrorMessage(`pm2 ${action} all: ${message}`);
+				});
+		})
+	);
+
+	context.subscriptions.push(pm2Tree, pm2Provider, pm2Logs, ...actionCommands, ...bulkCommands);
 }
 
 export function deactivate() {}
 
 function runPm2(command: Pm2Action, id: number): Promise<void> {
 	return execFileAsync('pm2', [command, String(id)]).then(() => undefined);
+}
+
+function runPm2All(command: Pm2Action): Promise<void> {
+	return execFileAsync('pm2', [command, 'all']).then(() => undefined);
 }

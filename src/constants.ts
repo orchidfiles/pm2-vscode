@@ -20,3 +20,5 @@ export const POLL_TIMEOUT_MS = 10_000;
 export const AUTO_REFRESH_MS = 5000;
 
 export const KNOWN_STATUSES = new Set<string>(Object.values(Pm2Status));
+
+export const PM2_ACTIONS = ['restart', 'stop', 'start'] as const satisfies Pm2Action[];

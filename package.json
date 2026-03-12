@@ -47,7 +47,7 @@
         "command": "pm2.restart",
         "category": "PM2",
         "title": "Restart",
-        "icon": "$(refresh)"
+        "icon": "$(debug-restart)"
       },
       {
         "command": "pm2.stop",
@@ -68,10 +68,22 @@
         "icon": "$(output)"
       },
       {
-        "command": "pm2.refresh",
+        "command": "pm2.startAll",
         "category": "PM2",
-        "title": "Refresh",
-        "icon": "$(refresh)"
+        "title": "Start All",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "pm2.stopAll",
+        "category": "PM2",
+        "title": "Stop All",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pm2.restartAll",
+        "category": "PM2",
+        "title": "Restart All",
+        "icon": "$(debug-restart)"
       }
     ],
     "menus": {
@@ -91,13 +103,35 @@
         {
           "command": "pm2.start",
           "when": "false"
+        },
+        {
+          "command": "pm2.startAll",
+          "when": "false"
+        },
+        {
+          "command": "pm2.stopAll",
+          "when": "false"
+        },
+        {
+          "command": "pm2.restartAll",
+          "when": "false"
         }
       ],
       "view/title": [
         {
-          "command": "pm2.refresh",
+          "command": "pm2.startAll",
           "when": "view == pm2Processes",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "pm2.restartAll",
+          "when": "view == pm2Processes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pm2.stopAll",
+          "when": "view == pm2Processes",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
