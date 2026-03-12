@@ -10,9 +10,8 @@ View and manage PM2 processes from VS Code and Cursor.
 - View PM2 processes in a dedicated Explorer view
 - See process status, CPU and memory usage
 - Open logs in the integrated terminal
-- Start, restart, and stop processes from inline actions
+- Start, restart, and stop individual processes or all at once
 - Refresh automatically every 5 seconds
-- Trigger a manual refresh from the view header
 
 ## Requirements
 

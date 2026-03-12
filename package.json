@@ -2,7 +2,7 @@
   "name": "pm2",
   "displayName": "PM2",
   "description": "View and manage PM2 processes",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "orchidfiles",
   "engines": {
     "vscode": "^1.85.0"

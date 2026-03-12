@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Add bulk start, restart, and stop buttons
+- Remove manual refresh button
+- Fix process actions targeting wrong process when names are not unique
+
 ## 1.1.0
 
 - Instant status update on start/stop/restart
