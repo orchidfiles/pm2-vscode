@@ -4,7 +4,7 @@ import { OPTIMISTIC_STATUS, PM2_ACTIONS, SETTLED_STATUS } from './constants';
 import { Pm2Item } from './pm2-item';
 import { Pm2Provider } from './pm2-provider';
 import { Pm2Action } from './types';
-import { execFileAsync } from './utils';
+import { errorMessageFromUnknown, execFileAsync } from './utils';
 
 export function activate(context: vscode.ExtensionContext) {
 	const pm2Provider = new Pm2Provider();
@@ -35,8 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			pm2Provider.optimisticUpdate(item.process, OPTIMISTIC_STATUS[action], SETTLED_STATUS[action]);
 			runPm2(action, item.process.id).catch((err: unknown) => {
-				const message = err instanceof Error ? err.message : String(err);
-				vscode.window.showErrorMessage(`pm2 ${action} ${item.process.name}: ${message}`);
+				vscode.window.showErrorMessage(`pm2 ${action} ${item.process.name}: ${errorMessageFromUnknown(err)}`);
 				pm2Provider.abortPolling();
 			});
 		})
@@ -47,13 +46,20 @@ export function activate(context: vscode.ExtensionContext) {
 			runPm2All(action)
 				.then(() => pm2Provider.refresh())
 				.catch((err: unknown) => {
-					const message = err instanceof Error ? err.message : String(err);
-					vscode.window.showErrorMessage(`pm2 ${action} all: ${message}`);
+					vscode.window.showErrorMessage(`pm2 ${action} all: ${errorMessageFromUnknown(err)}`);
 				});
 		})
 	);
 
-	context.subscriptions.push(pm2Tree, pm2Provider, pm2Logs, ...actionCommands, ...bulkCommands);
+	const pm2Refresh = vscode.commands.registerCommand('pm2.refresh', () => {
+		pm2Provider.refresh();
+	});
+
+	const pm2OpenSettings = vscode.commands.registerCommand('pm2.openSettings', () => {
+		void vscode.commands.executeCommand('workbench.action.openSettings', '@ext:orchidfiles.pm2');
+	});
+
+	context.subscriptions.push(pm2Tree, pm2Provider, pm2Logs, pm2Refresh, pm2OpenSettings, ...actionCommands, ...bulkCommands);
 }
 
 export function deactivate() {}

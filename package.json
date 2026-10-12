@@ -1,203 +1,255 @@
 {
-  "name": "pm2",
-  "displayName": "PM2",
-  "description": "View and manage PM2 processes",
-  "version": "1.2.0",
-  "publisher": "orchidfiles",
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "license": "MIT",
-  "pricing": "Free",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/orchidfiles/pm2-vscode.git"
-  },
-  "bugs": {
-    "url": "https://github.com/orchidfiles/pm2-vscode/issues"
-  },
-  "homepage": "https://github.com/orchidfiles/pm2-vscode",
-  "keywords": [
-    "pm2",
-    "process-manager",
-    "process-monitoring",
-    "logs",
-    "nodejs",
-    "devops"
-  ],
-  "categories": [
-    "Other"
-  ],
-  "extensionKind": [
-    "ui"
-  ],
-  "icon": "resources/icon.png",
-  "main": "./dist/extension.js",
-  "contributes": {
-    "views": {
-      "explorer": [
-        {
-          "id": "pm2Processes",
-          "name": "PM2"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "pm2.restart",
-        "category": "PM2",
-        "title": "Restart",
-        "icon": "$(debug-restart)"
-      },
-      {
-        "command": "pm2.stop",
-        "category": "PM2",
-        "title": "Stop",
-        "icon": "$(debug-stop)"
-      },
-      {
-        "command": "pm2.start",
-        "category": "PM2",
-        "title": "Start",
-        "icon": "$(play)"
-      },
-      {
-        "command": "pm2.logs",
-        "category": "PM2",
-        "title": "Logs",
-        "icon": "$(output)"
-      },
-      {
-        "command": "pm2.startAll",
-        "category": "PM2",
-        "title": "Start All",
-        "icon": "$(run-all)"
-      },
-      {
-        "command": "pm2.stopAll",
-        "category": "PM2",
-        "title": "Stop All",
-        "icon": "$(debug-stop)"
-      },
-      {
-        "command": "pm2.restartAll",
-        "category": "PM2",
-        "title": "Restart All",
-        "icon": "$(debug-restart)"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "pm2.logs",
-          "when": "false"
-        },
-        {
-          "command": "pm2.restart",
-          "when": "false"
-        },
-        {
-          "command": "pm2.stop",
-          "when": "false"
-        },
-        {
-          "command": "pm2.start",
-          "when": "false"
-        },
-        {
-          "command": "pm2.startAll",
-          "when": "false"
-        },
-        {
-          "command": "pm2.stopAll",
-          "when": "false"
-        },
-        {
-          "command": "pm2.restartAll",
-          "when": "false"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "pm2.startAll",
-          "when": "view == pm2Processes",
-          "group": "navigation@1"
-        },
-        {
-          "command": "pm2.restartAll",
-          "when": "view == pm2Processes",
-          "group": "navigation@2"
-        },
-        {
-          "command": "pm2.stopAll",
-          "when": "view == pm2Processes",
-          "group": "navigation@3"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "pm2.logs",
-          "when": "view == pm2Processes",
-          "group": "inline@1"
-        },
-        {
-          "command": "pm2.restart",
-          "when": "view == pm2Processes && viewItem == online",
-          "group": "inline@2"
-        },
-        {
-          "command": "pm2.stop",
-          "when": "view == pm2Processes && viewItem == online",
-          "group": "inline@3"
-        },
-        {
-          "command": "pm2.start",
-          "when": "view == pm2Processes && viewItem == stopped",
-          "group": "inline@2"
-        },
-        {
-          "command": "pm2.restart",
-          "when": "view == pm2Processes && viewItem == stopped",
-          "group": "inline@3"
-        },
-        {
-          "command": "pm2.restart",
-          "when": "view == pm2Processes && viewItem == errored",
-          "group": "inline@2"
-        }
-      ]
-    }
-  },
-  "scripts": {
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "prepare": "husky",
-    "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json",
-    "package": "pnpm build && vsce package --no-dependencies --out pm2.vsix",
-    "publish:vscode": "vsce publish --packagePath pm2.vsix",
-    "publish:ovsx": "ovsx publish --packagePath pm2.vsix",
-    "publish": "pnpm package && pnpm publish:vscode && pnpm publish:ovsx"
-  },
-  "devDependencies": {
-    "@stylistic/eslint-plugin": "~5.10.0",
-    "@types/node": "~22.15.35",
-    "@types/vscode": "~1.85.0",
-    "@typescript-eslint/parser": "~8.57.0",
-    "@vitest/eslint-plugin": "~1.6.10",
-    "@vscode/vsce": "~3.2.0",
-    "eslint": "~9.39.4",
-    "eslint-config-prettier": "~10.1.8",
-    "eslint-import-resolver-typescript": "~4.4.4",
-    "eslint-plugin-import-x": "~4.16.1",
-    "eslint-plugin-prettier": "~5.5.5",
-    "globals": "~17.4.0",
-    "husky": "^9.1.7",
-    "ovsx": "~0.10.9",
-    "prettier": "~3.8.1",
-    "typescript": "~5.7.0",
-    "typescript-eslint": "~8.57.0",
-    "vitest": "~4.0.18"
-  },
-  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
+	"name": "pm2",
+	"displayName": "PM2",
+	"description": "View and manage PM2 processes",
+	"version": "1.3.0",
+	"publisher": "orchidfiles",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"license": "MIT",
+	"pricing": "Free",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/orchidfiles/pm2-vscode.git"
+	},
+	"bugs": {
+		"url": "https://github.com/orchidfiles/pm2-vscode/issues"
+	},
+	"homepage": "https://github.com/orchidfiles/pm2-vscode",
+	"keywords": [
+		"pm2",
+		"process-manager",
+		"process-monitoring",
+		"logs",
+		"nodejs",
+		"devops"
+	],
+	"categories": [
+		"Other"
+	],
+	"extensionKind": [
+		"ui"
+	],
+	"icon": "resources/icon.png",
+	"main": "./dist/extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "PM2",
+			"properties": {
+				"pm2.processesRefreshInterval": {
+					"type": "number",
+					"default": 5,
+					"minimum": 0,
+					"description": "How often to refresh process list and statuses (seconds). 0 disables automatic refresh."
+				},
+				"pm2.metricsRefreshInterval": {
+					"type": "number",
+					"default": 15,
+					"minimum": 0,
+					"description": "How often to refresh CPU and memory in the tree (seconds). 0 freezes metrics until you use Refresh or start/stop/restart."
+				}
+			}
+		},
+		"views": {
+			"explorer": [
+				{
+					"id": "pm2Processes",
+					"name": "PM2"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "pm2.restart",
+				"category": "PM2",
+				"title": "Restart",
+				"icon": "$(debug-restart)"
+			},
+			{
+				"command": "pm2.stop",
+				"category": "PM2",
+				"title": "Stop",
+				"icon": "$(debug-stop)"
+			},
+			{
+				"command": "pm2.start",
+				"category": "PM2",
+				"title": "Start",
+				"icon": "$(play)"
+			},
+			{
+				"command": "pm2.logs",
+				"category": "PM2",
+				"title": "Logs",
+				"icon": "$(output)"
+			},
+			{
+				"command": "pm2.startAll",
+				"category": "PM2",
+				"title": "Start All",
+				"icon": "$(run-all)"
+			},
+			{
+				"command": "pm2.stopAll",
+				"category": "PM2",
+				"title": "Stop All",
+				"icon": "$(debug-stop)"
+			},
+			{
+				"command": "pm2.restartAll",
+				"category": "PM2",
+				"title": "Restart All",
+				"icon": "$(debug-restart)"
+			},
+			{
+				"command": "pm2.refresh",
+				"category": "PM2",
+				"title": "Refresh",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "pm2.openSettings",
+				"category": "PM2",
+				"title": "PM2 Settings",
+				"icon": "$(settings-gear)"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "pm2.logs",
+					"when": "false"
+				},
+				{
+					"command": "pm2.restart",
+					"when": "false"
+				},
+				{
+					"command": "pm2.stop",
+					"when": "false"
+				},
+				{
+					"command": "pm2.start",
+					"when": "false"
+				},
+				{
+					"command": "pm2.startAll",
+					"when": "false"
+				},
+				{
+					"command": "pm2.stopAll",
+					"when": "false"
+				},
+				{
+					"command": "pm2.restartAll",
+					"when": "false"
+				},
+				{
+					"command": "pm2.refresh",
+					"when": "false"
+				},
+				{
+					"command": "pm2.openSettings",
+					"when": "false"
+				}
+			],
+			"view/title": [
+				{
+					"command": "pm2.openSettings",
+					"when": "view == pm2Processes",
+					"group": "navigation@0"
+				},
+				{
+					"command": "pm2.refresh",
+					"when": "view == pm2Processes",
+					"group": "navigation@0"
+				},
+				{
+					"command": "pm2.startAll",
+					"when": "view == pm2Processes",
+					"group": "navigation@1"
+				},
+				{
+					"command": "pm2.restartAll",
+					"when": "view == pm2Processes",
+					"group": "navigation@2"
+				},
+				{
+					"command": "pm2.stopAll",
+					"when": "view == pm2Processes",
+					"group": "navigation@3"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "pm2.logs",
+					"when": "view == pm2Processes",
+					"group": "inline@1"
+				},
+				{
+					"command": "pm2.restart",
+					"when": "view == pm2Processes && viewItem == online",
+					"group": "inline@2"
+				},
+				{
+					"command": "pm2.stop",
+					"when": "view == pm2Processes && viewItem == online",
+					"group": "inline@3"
+				},
+				{
+					"command": "pm2.start",
+					"when": "view == pm2Processes && viewItem == stopped",
+					"group": "inline@2"
+				},
+				{
+					"command": "pm2.restart",
+					"when": "view == pm2Processes && viewItem == stopped",
+					"group": "inline@3"
+				},
+				{
+					"command": "pm2.restart",
+					"when": "view == pm2Processes && viewItem == errored",
+					"group": "inline@2"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"prepare": "husky",
+		"test": "vitest run",
+		"build": "tsup",
+		"package": "pnpm build && vsce package --no-dependencies --out pm2.vsix",
+		"publish:vscode": "vsce publish --packagePath pm2.vsix",
+		"publish:ovsx": "ovsx publish --packagePath pm2.vsix",
+		"publish": "pnpm package && pnpm publish:vscode && pnpm publish:ovsx"
+	},
+	"dependencies": {
+		"lodash": "~4.17.23"
+	},
+	"devDependencies": {
+		"@types/lodash": "~4.17.24",
+		"tsup": "~8.5.0",
+		"@stylistic/eslint-plugin": "~5.10.0",
+		"@types/node": "~22.15.35",
+		"@types/vscode": "~1.85.0",
+		"@typescript-eslint/parser": "~8.57.0",
+		"@vitest/eslint-plugin": "~1.6.10",
+		"@vscode/vsce": "~3.2.0",
+		"eslint": "~9.39.4",
+		"eslint-config-prettier": "~10.1.8",
+		"eslint-import-resolver-typescript": "~4.4.4",
+		"eslint-plugin-import-x": "~4.16.1",
+		"eslint-plugin-prettier": "~5.5.5",
+		"globals": "~17.4.0",
+		"husky": "^9.1.7",
+		"ovsx": "~0.10.9",
+		"prettier": "~3.8.1",
+		"typescript": "~5.7.0",
+		"typescript-eslint": "~8.57.0",
+		"vitest": "~4.0.18"
+	},
+	"packageManager": "pnpm@10.24.0"
 }

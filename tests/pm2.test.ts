@@ -1,8 +1,17 @@
+import { find, merge } from 'lodash';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { Pm2Status } from '../src/enums';
 import { Pm2Item } from '../src/pm2-item';
-import { parseProcessList, shellQuote } from '../src/utils';
+import {
+	applyMetricsFromFresh,
+	parseProcessList,
+	processesMetricsEqual,
+	processesStructureEqual,
+	errorMessageFromUnknown,
+	readRefreshIntervalSec,
+	shellQuote
+} from '../src/utils';
 
 import type { Pm2Process } from '../src/types';
 
@@ -43,6 +52,8 @@ const { MockThemeColor, MockThemeIcon, MockTreeItem, MockEventEmitter } = vi.hoi
 
 const mockShowErrorMessage = vi.fn();
 const mockExecFileAsync = vi.fn();
+const mockGetConfiguration = vi.fn();
+const mockOnDidChangeConfiguration = vi.fn();
 
 vi.mock('vscode', () => ({
 	TreeItem: MockTreeItem,
@@ -52,6 +63,10 @@ vi.mock('vscode', () => ({
 	EventEmitter: MockEventEmitter,
 	window: {
 		showErrorMessage: (...args: unknown[]) => mockShowErrorMessage(...args)
+	},
+	workspace: {
+		getConfiguration: (...args: unknown[]) => mockGetConfiguration(...args),
+		onDidChangeConfiguration: (...args: unknown[]) => mockOnDidChangeConfiguration(...args)
 	}
 }));
 
@@ -67,8 +82,29 @@ vi.mock('../src/utils', async (importOriginal) => {
 type TestPm2Item = Omit<Pm2Item, 'iconPath'> & { iconPath?: InstanceType<typeof MockThemeIcon> };
 
 function makeProcess(overrides: Partial<Pm2Process> = {}): Pm2Process {
-	return { id: 0, name: 'api', status: Pm2Status.Online, pid: 1234, cpu: 12, memory: 52428800, ...overrides };
+	return merge({}, { id: 0, name: 'api', status: Pm2Status.Online, pid: 1234, cpu: 12, memory: 52428800 }, overrides);
 }
+
+describe('errorMessageFromUnknown', () => {
+	it('reads Error message', () => {
+		expect(errorMessageFromUnknown(new Error('boom'))).toBe('boom');
+	});
+
+	it('coerces non-Error values', () => {
+		expect(errorMessageFromUnknown('plain')).toBe('plain');
+	});
+});
+
+describe('readRefreshIntervalSec', () => {
+	it.each([
+		['undefined uses default', undefined, 15],
+		['zero stays zero', 0, 0],
+		['string zero', '0', 0],
+		['invalid uses default', 'x', 15]
+	])('%s', (_label, input, expected) => {
+		expect(readRefreshIntervalSec(input, 15)).toBe(expected);
+	});
+});
 
 describe('shellQuote', () => {
 	it.each([
@@ -79,6 +115,24 @@ describe('shellQuote', () => {
 		['only quotes', "'''", "''\\'''\\'''\\'''"]
 	])('%s', (_label, input, expected) => {
 		expect(shellQuote(input)).toBe(expected);
+	});
+});
+
+describe('process list comparison', () => {
+	it('processesStructureEqual ignores metrics', () => {
+		const a = [makeProcess({ cpu: 1, memory: 1 })];
+		const b = [makeProcess({ cpu: 99, memory: 99 })];
+		expect(processesStructureEqual(a, b)).toBe(true);
+		expect(processesMetricsEqual(a, b)).toBe(false);
+	});
+
+	it('applyMetricsFromFresh updates cpu and memory by id', () => {
+		const current = [makeProcess({ id: 0, cpu: 1, memory: 100 })];
+		const fresh = [makeProcess({ id: 0, cpu: 50, memory: 200, status: 'stopped' })];
+		const result = applyMetricsFromFresh(current, fresh);
+		expect(result[0].cpu).toBe(50);
+		expect(result[0].memory).toBe(200);
+		expect(result[0].status).toBe('online');
 	});
 });
 
@@ -179,6 +233,12 @@ describe('Pm2Provider', () => {
 		vi.useFakeTimers();
 		mockExecFileAsync.mockReset();
 		mockShowErrorMessage.mockReset();
+		mockGetConfiguration.mockReset();
+		mockOnDidChangeConfiguration.mockReset();
+		mockGetConfiguration.mockReturnValue({
+			get: (_key: string, defaultValue: number) => defaultValue
+		});
+		mockOnDidChangeConfiguration.mockReturnValue({ dispose: vi.fn() });
 		({ Pm2Provider } = await import('../src/pm2-provider'));
 	});
 
@@ -194,6 +254,66 @@ describe('Pm2Provider', () => {
 	function jlistResult(processes: object[]) {
 		return { stdout: JSON.stringify(processes), stderr: '' };
 	}
+
+	it('keeps metrics frozen when their interval is zero', async () => {
+		mockGetConfiguration.mockReturnValue({ get: (key: string) => (key === 'metricsRefreshInterval' ? 0 : 5) });
+		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
+		const provider = new Pm2Provider();
+		await provider.getChildren();
+		const fresh = makeRawProcess(0, 'api', 'stopped');
+		fresh.monit.cpu = 75;
+		fresh.monit.memory = 1048576;
+		mockExecFileAsync.mockResolvedValue(jlistResult([fresh]));
+		await vi.advanceTimersByTimeAsync(15000);
+		const children = await provider.getChildren();
+		expect(children[0].process.status).toBe('stopped');
+		expect(children[0].process.cpu).toBe(0);
+		expect(children[0].process.memory).toBe(0);
+		provider.dispose();
+	});
+
+	it('keeps statuses and list frozen when their interval is zero', async () => {
+		mockGetConfiguration.mockReturnValue({ get: (key: string) => (key === 'processesRefreshInterval' ? 0 : 5) });
+		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
+		const provider = new Pm2Provider();
+		await provider.getChildren();
+		const fresh = makeRawProcess(0, 'api', 'stopped');
+		fresh.monit.cpu = 75;
+		mockExecFileAsync.mockResolvedValue(jlistResult([fresh, makeRawProcess(1, 'new', 'online')]));
+		await vi.advanceTimersByTimeAsync(5000);
+		const children = await provider.getChildren();
+		expect(children).toHaveLength(1);
+		expect(children[0].process.status).toBe('online');
+		expect(children[0].process.cpu).toBe(75);
+		provider.dispose();
+	});
+
+	it('updates metrics on manual refresh when auto metrics refresh is off', async () => {
+		mockGetConfiguration.mockReturnValue({ get: () => 0 });
+		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
+		const provider = new Pm2Provider();
+		await provider.getChildren();
+		const fresh = makeRawProcess(0, 'api', 'online');
+		fresh.monit.cpu = 42;
+		mockExecFileAsync.mockResolvedValue(jlistResult([fresh]));
+		provider.refresh();
+		await vi.waitFor(async () => {
+			const children = await provider.getChildren();
+
+			return children[0]?.process.cpu === 42;
+		});
+		provider.dispose();
+	});
+
+	it('does not fetch automatically when both intervals are zero', async () => {
+		mockGetConfiguration.mockReturnValue({ get: () => 0 });
+		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
+		const provider = new Pm2Provider();
+		await provider.getChildren();
+		await vi.advanceTimersByTimeAsync(60000);
+		expect(mockExecFileAsync).toHaveBeenCalledTimes(1);
+		provider.dispose();
+	});
 
 	it('getChildren returns items from pm2 jlist', async () => {
 		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
@@ -289,6 +409,34 @@ describe('Pm2Provider', () => {
 		provider.dispose();
 	});
 
+	it('poll settle refreshes metrics for all processes when auto metrics refresh is off', async () => {
+		mockGetConfiguration.mockReturnValue({ get: (key: string) => (key === 'metricsRefreshInterval' ? 0 : 5) });
+		const api = makeRawProcess(0, 'api', 'online');
+		api.monit.cpu = 10;
+		const worker = makeRawProcess(1, 'worker', 'online');
+		worker.monit.cpu = 50;
+		mockExecFileAsync.mockResolvedValue(jlistResult([api, worker]));
+		const provider = new Pm2Provider();
+		await provider.getChildren();
+
+		provider.optimisticUpdate(makeProcess({ id: 0, name: 'api', status: Pm2Status.Online, cpu: 10 }), Pm2Status.Stopping, [
+			Pm2Status.Stopped
+		]);
+
+		const stoppedApi = makeRawProcess(0, 'api', 'stopped');
+		stoppedApi.monit.cpu = 0;
+		const workerFromJlist = makeRawProcess(1, 'worker', 'online');
+		workerFromJlist.monit.cpu = 0;
+		mockExecFileAsync.mockResolvedValue(jlistResult([stoppedApi, workerFromJlist]));
+		await vi.advanceTimersByTimeAsync(600);
+
+		const children = await provider.getChildren();
+		expect(find(children, (item) => item.process.id === 0)?.process.status).toBe('stopped');
+		expect(find(children, (item) => item.process.id === 0)?.process.cpu).toBe(0);
+		expect(find(children, (item) => item.process.id === 1)?.process.cpu).toBe(0);
+		provider.dispose();
+	});
+
 	it('poll aborts on timeout', async () => {
 		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'online')]));
 		const provider = new Pm2Provider();
@@ -300,9 +448,8 @@ describe('Pm2Provider', () => {
 
 		await vi.advanceTimersByTimeAsync(10_001);
 
-		mockExecFileAsync.mockResolvedValue(jlistResult([makeRawProcess(0, 'api', 'stopping')]));
 		const children = await provider.getChildren();
-		expect(children[0].process.status).toBe('stopping');
+		expect(children[0].process.status).toBe('online');
 		provider.dispose();
 	});
 });

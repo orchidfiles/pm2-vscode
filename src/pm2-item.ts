@@ -1,3 +1,4 @@
+import { compact, round } from 'lodash';
 import * as vscode from 'vscode';
 
 import { Pm2Status } from './enums';
@@ -8,7 +9,9 @@ export class Pm2Item extends vscode.TreeItem {
 	constructor(public readonly process: Pm2Process) {
 		super(process.name, vscode.TreeItemCollapsibleState.None);
 
-		const memMb = Math.round(process.memory / 1024 / 1024);
+		this.id = String(process.id);
+
+		const memMb = round(process.memory / 1024 / 1024);
 		const status = toKnownStatus(process.status);
 
 		switch (status) {
@@ -34,14 +37,12 @@ export class Pm2Item extends vscode.TreeItem {
 				this.iconPath = new vscode.ThemeIcon('circle-outline');
 		}
 
-		this.tooltip = [
+		this.tooltip = compact([
 			`Name: ${process.name}`,
 			`Status: ${process.status}`,
 			process.pid ? `PID: ${process.pid}` : null,
 			`CPU: ${process.cpu}%`,
 			`Memory: ${memMb} MB`
-		]
-			.filter((x): x is string => x !== null)
-			.join('\n');
+		]).join('\n');
 	}
 }

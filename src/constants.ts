@@ -15,9 +15,21 @@ export const SETTLED_STATUS: Record<Pm2Action, Pm2Status[]> = {
 	restart: [Pm2Status.Online, Pm2Status.Errored]
 };
 
-export const POLL_INTERVAL_MS = 500;
-export const POLL_TIMEOUT_MS = 10_000;
-export const AUTO_REFRESH_MS = 5000;
+export const PM2_POLL = {
+	intervalMs: 500,
+	timeoutMs: 10_000
+} as const;
+
+export const PM2_REFRESH_INTERVALS = {
+	processes: {
+		setting: 'processesRefreshInterval',
+		defaultSec: 5
+	},
+	metrics: {
+		setting: 'metricsRefreshInterval',
+		defaultSec: 15
+	}
+} as const;
 
 export const KNOWN_STATUSES = new Set<string>(Object.values(Pm2Status));
 
